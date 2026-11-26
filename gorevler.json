@@ -1152,5 +1152,62 @@
    "yaw": 5.497787143782138,
    "room": "Yaşam Desteği"
   }
+ ],
+ "crew": [
+  {
+   "node": "Deniz",
+   "name": "Deniz Kaya",
+   "role": "Sistem ve iletişim teknisyeni",
+   "pos": [
+    0.95,
+    0.02,
+    12.55
+   ],
+   "dialog": "Hoş geldin Eren. İletişim kayıtlarına bakmam gerekiyor. Röle için önce hava kilidinden donanımını al."
+  },
+  {
+   "node": "Viktor",
+   "name": "Viktor Hale",
+   "role": "İkinci komutan · Reaktör",
+   "pos": [
+    -6.35,
+    0.02,
+    -9.85
+   ],
+   "dialog": "Reaktörün kadranlarını izle. Üçünü birden açmak çözüm değil. Kalibrasyon konsolu burada."
+  },
+  {
+   "node": "Mira",
+   "name": "Dr. Mira Aksoy",
+   "role": "Sağlık sorumlusu",
+   "pos": [
+    13.25,
+    0.02,
+    -0.15
+   ],
+   "dialog": "İyi misin Eren? Nötr kartuş tezgâhta. Kaydı karşılaştırmamız gerekirse önce kart hareketini getir."
+  },
+  {
+   "node": "Arslan",
+   "name": "Halil Arslan",
+   "role": "İstasyon komutanı",
+   "pos": [
+    2.25,
+    0.02,
+    -12.45
+   ],
+   "dialog": "Öncelik mürettebatın güvenliği. Arızaları kaydet ve kanıtları köprüye getir."
+  },
+  {
+   "node": "Kemal",
+   "name": "Kemal Usta",
+   "role": "Kıdemli mekanikçi",
+   "pos": [
+    -13.05,
+    0.02,
+    -1.15
+   ],
+   "dialog": "Evlat, göstergelerin hareketine bak. Aletler ne söylüyor önce onu dinle. Kargo hattını da unutma."
+  }
  ]
 }

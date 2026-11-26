@@ -37,6 +37,12 @@ var needles: Dictionary = {}
 var hiss: AudioStreamPlayer3D
 var click: AudioStreamPlayer
 var screw_index = 0
+var eva_active = false
+var npc_nodes: Dictionary = {}
+var eva_door_center: Vector3
+var eva_outward: Vector3
+var eva_tangent: Vector3
+
 
 func v3(a) -> Vector3:
  return Vector3(float(a[0]), float(a[1]), float(a[2]))
@@ -55,6 +61,10 @@ func label_at(pos: Vector2, font_size: int, color: Color) -> Label:
 func _ready():
  var f = FileAccess.open("res://gorevler.json",FileAccess.READ)
  data = JSON.parse_string(f.get_as_text())
+ eva_door_center = v3(data.doors.EVA.pos)
+ eva_outward = Vector3(eva_door_center.x, 0.0, eva_door_center.z).normalized()
+ eva_tangent = Vector3(eva_outward.z, 0.0, -eva_outward.x)
+
  exterior_cam = Camera3D.new()
  add_child(exterior_cam)
  exterior_cam.far=350
@@ -67,7 +77,7 @@ func _ready():
  message=label_at(Vector2.ZERO,17,Color("#e7f4e6"))
  message.autowrap_mode=TextServer.AUTOWRAP_WORD_SMART
  info=label_at(Vector2(24,64),17,Color("#daebe2"))
- info.text="İSTASYON İNCELEMESİ\n\nW A S D   yürü    •    Fare   bak    •    Shift   hızlı yürü\nE   odaktaki parçayı kullan    •    F   el feneri\nTab   dış görünüş    •    1–8   bölmeye git\nH   bu yardımı aç/kapat    •    Esc   fareyi bırak\n\nHava kilidinde başlıyorsun. Tur için geçidi izle.\nEtkileşim adı göründüğünde E tuşuna bas."
+ info.text="İSTASYON İNCELEMESİ\n\nW A S D   yürü    •    Fare   bak    •    Shift   hızlı yürü\nE   odaktaki parçayı kullan    •    F   el feneri\nTab   dış görünüş    •    1–8   bölmeye git\nEVA: Space yüksel · Ctrl alçal · R fren\nH   bu yardımı aç/kapat    •    Esc   fareyi bırak\n\nHava kilidinde başlıyorsun. Tur için geçidi izle.\nEtkileşim adı göründüğünde E tuşuna bas."
  var torch=SpotLight3D.new()
  torch.name="ElFeneri"
  eye.add_child(torch)
@@ -115,6 +125,7 @@ func _ready():
    lamp.omni_range=6.0
    lamp.light_energy=.84
    lamp.light_color=Color("#d6eff3") if offset>0 else Color("#ffe6bc")
+ prepare_crew()
  jump_room(3)
  Input.mouse_mode=Input.MOUSE_MODE_CAPTURED
 
@@ -146,6 +157,7 @@ func jump_room(i):
  player.rotation=Vector3(0,float(data.spawns[i].yaw),0)
  eye.rotation=Vector3.ZERO
  player.velocity=Vector3.ZERO
+ set_eva(false)
  hands_on_fuse=false
  if exterior: toggle_view()
  focus_id=""
@@ -198,17 +210,7 @@ func _physics_process(dt):
   d.node.global_transform=Transform3D(twist*d.base,d.pivot+twist*d.offset)
  if hiss:hiss.volume_db=move_toward(hiss.volume_db,-80.0 if life_ok else -9.0,dt*45.0)
  if not exterior:
-  var move=Vector2.ZERO
-  if Input.mouse_mode==Input.MOUSE_MODE_CAPTURED and not hands_on_fuse:
-   move=Vector2(int(Input.is_physical_key_pressed(KEY_D))-int(Input.is_physical_key_pressed(KEY_A)),int(Input.is_physical_key_pressed(KEY_S))-int(Input.is_physical_key_pressed(KEY_W))).normalized()
-  var dir=player.global_transform.basis*Vector3(move.x,0,move.y)
-  var speed=4.6 if Input.is_physical_key_pressed(KEY_SHIFT) else 2.6
-  player.velocity.x=dir.x*speed
-  player.velocity.z=dir.z*speed
-  if not player.is_on_floor():player.velocity.y-=16.0*dt
-  elif player.velocity.y<0:player.velocity.y=0
-  player.move_and_slide()
-  if player.global_position.y < -4:jump_room(room_id)
+  move_player(dt)
  else:
   exterior_cam.position=Vector3(cos(orbit)*cos(elevation),sin(elevation),sin(orbit)*cos(elevation))*radius+Vector3.UP
   exterior_cam.look_at(Vector3.UP,Vector3.UP)
@@ -224,7 +226,7 @@ func _physics_process(dt):
  hud(dt)
 
 func nearest_room():
- if exterior:return
+ if exterior or eva_active:return
  var best=10000.0
  for i in range(8):
   var dist=player.global_position.distance_squared_to(v3(data.spawns[i].pos))
@@ -266,13 +268,14 @@ func hud(dt):
  var sz=get_viewport().get_visible_rect().size
  reticle.visible=not exterior
  reticle.position=sz/2-Vector2(4,14)
- status.text="ARK–7  /  "+("DIŞ GÖVDE" if exterior else str(data.spawns[room_id].room).to_upper())+"     ·     H  yardım"
+ status.text="ARK–7  /  "+("DIŞ GÖVDE" if exterior else ("EVA · 0 g" if eva_active else str(data.spawns[room_id].room).to_upper()))+"     ·     H  yardım"
  var title=""
  if exterior:title="Fare  yörünge   ·   Tekerlek  yakınlaş   ·   Tab  güverteye dön"
  elif focus_id.begins_with("door/"):
   var k=focus_id.trim_prefix("door/")
   title="E   "+("Kapıyı kapat" if locks[k].open else "Kapıyı aç")
  elif focus_id!="":title="E   "+str(data.hits[focus_id].title)
+ elif eva_active:title="WASD / fare yönü · Space yüksel · Ctrl alçal · R fren"
  prompt.text=title
  prompt.position=Vector2((sz.x-prompt.get_minimum_size().x)*.5,sz.y*.68)
  message.size=Vector2(minf(900,sz.x-48),78)
@@ -330,6 +333,22 @@ func turn(k):
   else:say("Soğutma %s · %s. İkinci hattaki ibre düşüyor." % [str(int(k.right(1))+1),state[v]])
 
 func use_target(k):
+ if npc_nodes.has(k):
+  var npc = npc_nodes[k]
+  var character = npc.node as Node3D
+  var target = player.global_position
+  target.y = character.global_position.y
+  if character.global_position.distance_to(target) > .05:
+   character.look_at(target, Vector3.UP, true)
+  var dialogue_text = str(npc.dialog)
+  if k == "crew_Kemal" and flags.get("rescue",false):
+   dialogue_text = "Sağ ol evlat. Kargo kapısı açık. Şimdi istasyonun diğer hatlarını kontrol edelim."
+  elif k == "crew_Mira" and taken.has("bio"):
+   dialogue_text = "İki kayıt aynı dakikayı gösteriyor. Bu kaydı iyi sakla."
+  elif k == "crew_Deniz" and flags.get("relay",false):
+   dialogue_text = "Yerel hat geri geldi. Şirket bağlantısı hâlâ sessiz. Önbelleği kontrol et."
+  say(str(npc.name) + " · " + dialogue_text)
+  return
  if k.begins_with("screw"):
   var order=[0,2,1]
   if int(k.right(1))!=order[screw_index]:
@@ -429,3 +448,91 @@ func use_target(k):
   "capsule":say("Tek kişilik tahliye kapsülü. Koltuk, bağımsız itki ve servis kapağı hazır.")
   "meal":say("Altı kişilik vardiya masası. Koridor altı ayrı kamaraya uzanıyor.")
   "cabin":say("Eren’in kamara terminali ve notu aynı bakışta. Sayaç: 00:00.")
+
+# NPCs remain in their work areas and can be inspected with the same E interaction.
+func prepare_crew():
+ for member in data.crew:
+  var character = $Murettebat.get_node_or_null(str(member.node)) as Node3D
+  if character == null:
+   continue
+  var key = "crew_" + str(member.node)
+  npc_nodes[key] = {"node":character,"name":member.name,"dialog":member.dialog}
+  data.hits[key] = {"pos":[character.position.x,character.position.y+1.32,character.position.z],"title":str(member.name)+" · konuş","radius":2.65}
+  var body = StaticBody3D.new()
+  body.name = "KisiCarpismasi"
+  character.add_child(body)
+  var shape = CapsuleShape3D.new()
+  shape.radius = .21
+  shape.height = 1.6
+  var collider = CollisionShape3D.new()
+  collider.position.y = .80
+  collider.shape = shape
+  body.add_child(collider)
+  var tag = Label3D.new()
+  tag.text = str(member.name) + "\n" + str(member.role)
+  tag.position.y = 2.06
+  tag.font_size = 30
+  tag.outline_size = 6
+  tag.pixel_size = .0026
+  tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+  tag.modulate = Color("#e4f2e6")
+  character.add_child(tag)
+
+func set_eva(active: bool):
+ if eva_active == active:
+  return
+ eva_active = active
+ player.motion_mode = CharacterBody3D.MOTION_MODE_FLOATING if active else CharacterBody3D.MOTION_MODE_GROUNDED
+ player.floor_snap_length = 0.0 if active else .22
+ if not active:
+  player.velocity.y = 0.0
+ if active:
+  say("Yer çekimsiz alan. WASD ile uç, Space/Ctrl ile yüksel/alçal, R ile fren yap.")
+ else:
+  say("Hava kilidine döndün. Yapay yer çekimi etkin.")
+
+func detect_eva_crossing(previous: Vector3):
+ # Test the actual movement segment against the outer hatch plane.
+ if not locks["EVA"].open or float(locks["EVA"].amount) < .88:
+  return
+ var old_side = (previous-eva_door_center).dot(eva_outward)
+ var new_side = (player.global_position-eva_door_center).dot(eva_outward)
+ if old_side * new_side > 0.0 or absf(new_side-old_side) < .0001:
+  return
+ var crossing = previous.lerp(player.global_position, clampf(-old_side/(new_side-old_side),0.0,1.0))
+ if absf((crossing-eva_door_center).dot(eva_tangent)) > .83 or crossing.y < -.16 or crossing.y > .62:
+  return
+ if not eva_active and new_side > 0.0:
+  set_eva(true)
+ elif eva_active and new_side < 0.0:
+  set_eva(false)
+
+func move_player(dt: float):
+ var before = player.global_position
+ var move = Vector2.ZERO
+ var captured = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED and not hands_on_fuse
+ if captured:
+  move = Vector2(int(Input.is_physical_key_pressed(KEY_D))-int(Input.is_physical_key_pressed(KEY_A)),int(Input.is_physical_key_pressed(KEY_S))-int(Input.is_physical_key_pressed(KEY_W)))
+ if eva_active:
+  var lift = 0.0
+  if captured:
+   lift = float(int(Input.is_physical_key_pressed(KEY_SPACE))-int(Input.is_physical_key_pressed(KEY_CTRL)))
+  var thrust = eye.global_transform.basis * Vector3(move.x,0,move.y) + Vector3.UP * lift
+  # No gravity or ground snapping. Momentum persists until thrust or braking.
+  if captured and Input.is_physical_key_pressed(KEY_R):
+   player.velocity = player.velocity.move_toward(Vector3.ZERO, 12.0*dt)
+  elif thrust.length_squared() > .001:
+   player.velocity = (player.velocity + thrust.normalized()*4.8*dt).limit_length(6.0)
+ else:
+  var direction = player.global_transform.basis * Vector3(move.normalized().x,0,move.normalized().y)
+  var speed = 4.6 if Input.is_physical_key_pressed(KEY_SHIFT) else 2.6
+  player.velocity.x = direction.x*speed
+  player.velocity.z = direction.z*speed
+  if not player.is_on_floor():
+   player.velocity.y -= 16.0*dt
+  elif player.velocity.y < 0.0:
+   player.velocity.y = 0.0
+ player.move_and_slide()
+ detect_eva_crossing(before)
+ if not eva_active and player.global_position.y < -4.0:
+  jump_room(room_id)

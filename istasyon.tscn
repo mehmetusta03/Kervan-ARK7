@@ -1,10 +1,20 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=14 format=3]
 
 [ext_resource type="PackedScene" path="res://assetler/Kervan_ARK7.glb" id="1"]
 [ext_resource type="PackedScene" path="res://carpisma.tscn" id="2"]
 [ext_resource type="Script" path="res://istasyon.gd" id="3"]
 
 [ext_resource type="Shader" path="res://uzay.gdshader" id="4"]
+
+[ext_resource type="PackedScene" path="res://assetler/Deniz.glb" id="5"]
+
+[ext_resource type="PackedScene" path="res://assetler/Viktor.glb" id="6"]
+
+[ext_resource type="PackedScene" path="res://assetler/Mira.glb" id="7"]
+
+[ext_resource type="PackedScene" path="res://assetler/Arslan.glb" id="8"]
+
+[ext_resource type="PackedScene" path="res://assetler/Kemal.glb" id="9"]
 
 [sub_resource type="ShaderMaterial" id="SkyMat"]
 shader = ExtResource("4")
@@ -45,3 +55,25 @@ fov = 75.0
 near = 0.045
 far = 250.0
 current = true
+
+[node name="Murettebat" type="Node3D" parent="."]
+
+[node name="Deniz" parent="Murettebat" instance=ExtResource("5")]
+position = Vector3(0.95, 0.02, 12.55)
+rotation = Vector3(0, 0, 0)
+
+[node name="Viktor" parent="Murettebat" instance=ExtResource("6")]
+position = Vector3(-6.35, 0.02, -9.85)
+rotation = Vector3(0, -2.356194490192345, 0)
+
+[node name="Mira" parent="Murettebat" instance=ExtResource("7")]
+position = Vector3(13.25, 0.02, -0.15)
+rotation = Vector3(0, -1.5707963267948966, 0)
+
+[node name="Arslan" parent="Murettebat" instance=ExtResource("8")]
+position = Vector3(2.25, 0.02, -12.45)
+rotation = Vector3(0, 3.141592653589793, 0)
+
+[node name="Kemal" parent="Murettebat" instance=ExtResource("9")]
+position = Vector3(-13.05, 0.02, -1.15)
+rotation = Vector3(0, 1.5707963267948966, 0)
